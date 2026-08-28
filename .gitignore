@@ -1,0 +1,19 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+.next/
+out/
+build/
+coverage/
+artifacts/
+cache/
+typechain-types/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.pytest_cache/
