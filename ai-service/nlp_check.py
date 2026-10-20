@@ -11,13 +11,16 @@ except OSError:
     nlp = None  # Graceful degradation if model not installed
 
 
+from difflib import SequenceMatcher
+from datetime import datetime
+
 def check_consistency(cert_text: dict, known_data: dict) -> dict:
     """
     NLP-based semantic consistency validation.
     
     Checks:
-      1. Is the institution in our known institutions database?
-      2. Is the date logic valid? (year is not in future, not before 1900)
+      1. Is the institution in our known institutions database or follows an accredited naming pattern?
+      2. Is the date logic valid? (year is not in future, not before 1950)
       3. Does the degree type make sense for this institution type?
     
     Returns dict with boolean flags for each check.
@@ -29,42 +32,48 @@ def check_consistency(cert_text: dict, known_data: dict) -> dict:
         "all_passed": False,
     }
 
-    institution = cert_text.get("institution", "").strip().lower()
-    degree      = cert_text.get("degree", "").strip().lower()
+    institution = str(cert_text.get("institution", "")).strip().lower()
+    degree      = str(cert_text.get("degree", "")).strip().lower()
     year_str    = str(cert_text.get("year", "")).strip()
 
     # ── Check 1: Institution recognized ────────────────────────────────────
     known_institutions = [k.lower() for k in known_data.get("institutions", [])]
     
     if institution:
-        # Exact match
-        if institution in known_institutions:
-            result["institution_known"] = True
-        else:
-            # Partial match (e.g. "IIT" in "IIT Madras")
-            result["institution_known"] = any(
-                institution in ki or ki in institution
-                for ki in known_institutions
-            )
+        # Direct exact or partial inclusion
+        is_known = any(institution in ki or ki in institution for ki in known_institutions)
+        
+        # Fuzzy match with high similarity threshold (> 0.75)
+        if not is_known:
+            for ki in known_institutions:
+                if SequenceMatcher(None, institution, ki).ratio() > 0.75:
+                    is_known = True
+                    break
+        
+        # Suffix/pattern check for recognized educational entities
+        accredited_suffixes = ["university", "institute", "college", "polytechnic", "academy", "school of"]
+        if not is_known and any(s in institution for s in accredited_suffixes):
+            is_known = True
+
+        result["institution_known"] = is_known
 
     # ── Check 2: Date logic ─────────────────────────────────────────────────
     if year_str:
         try:
             year = int(year_str)
             current_year = datetime.now().year
-            if year > current_year or year < 1900:
+            if year > current_year + 1 or year < 1950:
                 result["dates_valid"] = False
         except ValueError:
             result["dates_valid"] = False
 
     # ── Check 3: Degree ↔ Institution type match ────────────────────────────
     if degree and institution:
-        # Map known degree keywords to institution types
         degree_keywords = {
             "medical": ["mbbs", "md", "bds", "nursing", "pharmacy", "medicine"],
-            "engineering": ["b.tech", "b.e", "m.tech", "m.e", "engineering"],
+            "engineering": ["b.tech", "b.e", "m.tech", "m.e", "engineering", "cse", "ece", "computer science"],
             "law": ["llb", "llm", "law", "legal"],
-            "management": ["mba", "pgdm", "management", "business"],
+            "management": ["mba", "pgdm", "management", "business", "bba"],
         }
         institution_types = known_data.get("institution_types", {})
         institution_type = None
@@ -76,8 +85,10 @@ def check_consistency(cert_text: dict, known_data: dict) -> dict:
         if institution_type:
             expected_degrees = degree_keywords.get(institution_type, [])
             if expected_degrees:
-                degree_matches = any(kw in degree for kw in expected_degrees)
-                result["degree_institution_match"] = degree_matches
+                result["degree_institution_match"] = any(kw in degree for kw in expected_degrees)
+        else:
+            # Multi-disciplinary university default
+            result["degree_institution_match"] = True
 
     result["all_passed"] = (
         result["institution_known"]
@@ -86,3 +97,4 @@ def check_consistency(cert_text: dict, known_data: dict) -> dict:
     )
 
     return result
+

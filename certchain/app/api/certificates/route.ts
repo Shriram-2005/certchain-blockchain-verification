@@ -5,6 +5,7 @@ import {
   computeCertHash,
 } from "@/lib/blockchain";
 import { sendCertificateEmail } from "@/lib/email";
+import { generateCertificatePdf } from "@/lib/pdf";
 import { v4 as uuidv4 } from "uuid";
 import { createClient } from "@/lib/supabase/server";
 
@@ -60,8 +61,9 @@ export async function POST(req: NextRequest) {
     const {
       holderName, holderEmail, certType, institution,
       degree, grade, year, expiresAt,
-      pdfBase64,   // base64 encoded PDF
-      fraudScore,  // from AI service (passed from frontend)
+      pdfBase64,          // base64 encoded PDF
+      uploadedDocBase64,  // uploaded document (scan or PDF)
+      fraudScore,         // from AI service (passed from frontend)
     } = body;
 
     // Basic validation
@@ -89,27 +91,8 @@ export async function POST(req: NextRequest) {
       certId, issuedAt: new Date().toISOString(),
     };
 
-    // Compute SHA-256 hash of certificate content
+    // Compute Keccak-256 hash of certificate content
     const certHash = computeCertHash(certMetadata);
-
-    // Upload PDF to Supabase Storage
-    let storagePath = "";
-    let publicUrl   = "";
-    if (pdfBase64) {
-      const pdfBuffer = Buffer.from(pdfBase64, "base64");
-      const fileName  = `${certId}.pdf`;
-      const { error: uploadError } = await adminDb.storage
-        .from("certificates")
-        .upload(fileName, pdfBuffer, { contentType: "application/pdf", upsert: false });
-
-      if (uploadError) throw uploadError;
-
-      storagePath = fileName;
-      const { data: urlData } = adminDb.storage
-        .from("certificates")
-        .getPublicUrl(fileName);
-      publicUrl = urlData.publicUrl;
-    }
 
     // Issue certificate on Ethereum blockchain
     const expiresAtTimestamp = expiresAt ? Math.floor(new Date(expiresAt).getTime() / 1000) : 0;
@@ -118,9 +101,47 @@ export async function POST(req: NextRequest) {
       holderName,
       certType,
       certHash,
-      ipfsCID:    storagePath || "",
+      ipfsCID:    certId,
       expiresAt:  expiresAtTimestamp,
     });
+
+    // Automatically generate official PDF with embedded QR Code & uploaded document
+    let pdfBuffer: Buffer;
+    if (pdfBase64) {
+      pdfBuffer = Buffer.from(pdfBase64, "base64");
+    } else {
+      pdfBuffer = await generateCertificatePdf({
+        certId,
+        holderName,
+        certType,
+        institution,
+        degree,
+        grade,
+        year,
+        issuedAt: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }),
+        certHash,
+        txHash,
+        uploadedDocBase64,
+      });
+    }
+
+    // Upload generated PDF to Supabase Storage bucket "certificates"
+    let storagePath = `${certId}.pdf`;
+    let publicUrl   = "";
+    try {
+      const { error: uploadError } = await adminDb.storage
+        .from("certificates")
+        .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
+
+      if (!uploadError) {
+        const { data: urlData } = adminDb.storage
+          .from("certificates")
+          .getPublicUrl(storagePath);
+        publicUrl = urlData.publicUrl;
+      }
+    } catch (e: any) {
+      console.warn("Supabase Storage upload warning:", e?.message || e);
+    }
 
     // Save metadata to Supabase DB
     const { data: certRecord, error: dbError } = await adminDb
@@ -139,14 +160,14 @@ export async function POST(req: NextRequest) {
         fraud_score:  fraudScore ?? 0,
         status:       "ACTIVE",
         expires_at:   expiresAt || null,
-        metadata:     { degree, grade, year },
+        metadata:     { degree, grade, year, pdfUrl: publicUrl },
       })
       .select()
       .single();
 
     if (dbError) throw dbError;
 
-    // Also insert audit log
+    // Insert audit log
     await adminDb.from("audit_logs").insert({
       cert_id:  certId,
       action:   "ISSUED",
@@ -155,18 +176,25 @@ export async function POST(req: NextRequest) {
       tx_hash:  txHash,
     });
 
-    // Send email to holder
+    // Send email to holder via Gmail SMTP with PDF attachment
+    let emailResult: any = null;
     if (holderEmail) {
-      await sendCertificateEmail({
-        to:          holderEmail,
-        holderName,
-        certId,
-        certType,
-        institution,
-        issuedAt:    new Date().toLocaleDateString("en-IN"),
-        pdfUrl:      publicUrl,
-        txHash,
-      }).catch(console.error); // Don't fail the whole request if email fails
+      try {
+        emailResult = await sendCertificateEmail({
+          to:          holderEmail,
+          holderName,
+          certId,
+          certType,
+          institution,
+          issuedAt:    new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }),
+          pdfUrl:      publicUrl,
+          pdfBuffer,
+          txHash,
+        });
+        console.log("Certificate email delivery result:", emailResult);
+      } catch (emailErr) {
+        console.error("Certificate email delivery exception:", emailErr);
+      }
     }
 
     return NextResponse.json({
@@ -175,6 +203,8 @@ export async function POST(req: NextRequest) {
       txHash,
       blockNumber,
       pdfUrl:      publicUrl,
+      emailSent:   emailResult?.success ?? false,
+      emailProvider: emailResult?.provider ?? null,
       certificate: certRecord,
     });
 

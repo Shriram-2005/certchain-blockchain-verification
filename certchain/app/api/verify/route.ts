@@ -40,12 +40,18 @@ export async function GET(req: NextRequest) {
     const adminDb = createAdminClient();
     const { data: meta } = await adminDb
       .from("certificates")
-      .select("institution, metadata, holder_name, cert_type, issued_at, tx_hash, fraud_score")
+      .select("institution, metadata, holder_name, cert_type, issued_at, tx_hash, fraud_score, storage_path")
       .eq("cert_id", certId)
       .single();
 
     const isValid  = onChain.status === "ACTIVE";
     const issuedAt = new Date(onChain.issuedAt * 1000).toISOString();
+
+    let pdfUrl = meta?.metadata?.pdfUrl || "";
+    if (!pdfUrl && meta?.storage_path) {
+      const { data: urlData } = adminDb.storage.from("certificates").getPublicUrl(meta.storage_path);
+      pdfUrl = urlData.publicUrl;
+    }
 
     return NextResponse.json({
       valid:        isValid,
@@ -57,6 +63,8 @@ export async function GET(req: NextRequest) {
       degree:       meta?.metadata?.degree ?? "",
       issuedAt,
       txHash:       meta?.tx_hash        ?? "",
+      pdfUrl,
+      certHash:     onChain.certHash,
       issuerAddress: onChain.issuerAddress,
       etherscanUrl: `https://sepolia.etherscan.io/tx/${meta?.tx_hash}`,
     });

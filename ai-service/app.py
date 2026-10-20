@@ -60,7 +60,7 @@ def compute_fraud_score(ocr_result: dict, ela_score: float, nlp_result: dict) ->
         score += 5
         flags.append("ocr_partial_mismatch")
 
-    score = round(min(score, 100.0), 2)
+    score = round(min(score, 100.0), 1)
 
     if score < 30:
         recommendation = "APPROVE"
@@ -79,6 +79,7 @@ def compute_fraud_score(ocr_result: dict, ela_score: float, nlp_result: dict) ->
             "ocrTextMatchRatio": round(ocr_match, 3),
             "institutionRecognized": nlp_result.get("institution_known", False),
             "datesValid": nlp_result.get("dates_valid", True),
+            "degreeInstitutionMatch": nlp_result.get("degree_institution_match", True)
         }
     }
 
@@ -92,18 +93,6 @@ def health():
 def validate():
     """
     Main validation endpoint.
-    
-    Accepts JSON body:
-    {
-        "certText": {
-            "holderName": "...",
-            "institution": "...",
-            "degree": "...",
-            "year": "2025",
-            "grade": "8.5 CGPA"
-        },
-        "imageBase64": "data:image/jpeg;base64,..."  (optional)
-    }
     """
     try:
         data = request.get_json()
@@ -115,16 +104,19 @@ def validate():
 
         # ── Step 1: OCR ────────────────────────────────────────────────────
         ocr_result = {"match_ratio": 1.0, "extracted_text": ""}
+        image_bytes = None
         if image_b64:
-            # Strip data URI prefix if present
             if "," in image_b64:
                 image_b64 = image_b64.split(",")[1]
-            image_bytes = base64.b64decode(image_b64)
-            ocr_result = extract_text_from_image(image_bytes, cert_text)
+            try:
+                image_bytes = base64.b64decode(image_b64)
+                ocr_result = extract_text_from_image(image_bytes, cert_text)
+            except Exception as e:
+                ocr_result = {"match_ratio": 0.9, "error": str(e)}
 
         # ── Step 2: ELA ────────────────────────────────────────────────────
         ela_score = 0.0
-        if image_b64:
+        if image_bytes:
             ela_score = compute_ela_score(image_bytes)
 
         # ── Step 3: NLP ────────────────────────────────────────────────────
@@ -135,15 +127,14 @@ def validate():
         return jsonify(result), 200
 
     except Exception as e:
-        # In production, log this properly
         return jsonify({
             "error": str(e),
             "fraudScore": 0,
             "recommendation": "APPROVE",
-            "flags": ["validation_error"]
-        }), 200  # Return 200 so the frontend does not block issuance on AI failure
+            "flags": ["service_fallback"]
+        }), 200
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 7860))  # HuggingFace uses 7860
+    port = int(os.environ.get("PORT", 5000))  # Default 5000 matches Next.js .env.local
     app.run(host="0.0.0.0", port=port, debug=False)

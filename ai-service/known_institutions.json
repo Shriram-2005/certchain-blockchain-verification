@@ -5,16 +5,16 @@
     "NIT Trichy", "NIT Warangal", "NIT Surathkal", "NIT Calicut", "NIT Rourkela",
     "BITS Pilani", "BITS Hyderabad", "BITS Goa",
     "Anna University", "VIT University", "SRM University", "Amrita University",
+    "Presidency University", "Presidency College", "Bangalore University",
     "Manipal University", "Symbiosis University", "Christ University",
     "Delhi University", "Bombay University", "Madras University", "Calcutta University",
-    "Pune University", "Osmania University", "Mysore University",
+    "Pune University", "Osmania University", "Mysore University", "VTU", "Visvesvaraya Technological University",
     "AIIMS Delhi", "AIIMS Mumbai", "AIIMS Bhopal", "CMC Vellore",
     "NLSIU Bangalore", "NLU Delhi", "NUJS Kolkata",
     "IIM Ahmedabad", "IIM Bangalore", "IIM Calcutta", "IIM Lucknow",
     "Harvard University", "MIT", "Stanford University", "Oxford University",
     "Cambridge University", "Imperial College London", "ETH Zurich",
-    "National University of Singapore", "University of Melbourne",
-    "ABC University", "XYZ College", "Government Polytechnic"
+    "National University of Singapore", "University of Melbourne"
   ],
   "institution_types": {
     "medical": ["AIIMS", "CMC", "Medical College", "Institute of Medical Sciences"],
