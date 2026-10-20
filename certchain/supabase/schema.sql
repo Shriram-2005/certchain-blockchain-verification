@@ -117,3 +117,24 @@ create policy "Authenticated users can upload certificate PDFs"
 -- Then update their metadata:
 -- update auth.users set raw_user_meta_data = '{"role": "admin"}' where email = 'admin@certchain.gov';
 -- update auth.users set raw_user_meta_data = '{"role": "issuer"}' where email = 'officer@certchain.gov';
+
+
+-- 1. Grant full schema & table permissions to Supabase roles
+grant usage on schema public to postgres, anon, authenticated, service_role;
+grant all on all tables in schema public to postgres, anon, authenticated, service_role;
+grant all on all sequences in schema public to postgres, anon, authenticated, service_role;
+grant all on all routines in schema public to postgres, anon, authenticated, service_role;
+
+-- 2. Ensure future tables also inherit these permissions automatically
+alter default privileges in schema public grant all on tables to postgres, anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to postgres, anon, authenticated, service_role;
+
+-- 3. Ensure Row-Level Security allows inserts & reads
+alter table public.certificates enable row level security;
+alter table public.audit_logs enable row level security;
+
+drop policy if exists "Allow all on certificates" on public.certificates;
+create policy "Allow all on certificates" on public.certificates for all using (true) with check (true);
+
+drop policy if exists "Allow all on audit_logs" on public.audit_logs;
+create policy "Allow all on audit_logs" on public.audit_logs for all using (true) with check (true);

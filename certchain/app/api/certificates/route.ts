@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
     const limit  = parseInt(searchParams.get("limit") ?? "20");
     const offset = (page - 1) * limit;
 
-    let query = supabase
+    const adminDb = createAdminClient();
+    let query = adminDb
       .from("certificates")
       .select("*", { count: "exact" })
       .order("issued_at", { ascending: false })
@@ -36,9 +37,10 @@ export async function GET(req: NextRequest) {
     const { data, error, count } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ certificates: data, total: count, page, limit });
+    return NextResponse.json({ certificates: data ?? [], total: count ?? 0, page, limit });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const errorMsg = err?.message || err?.details || (typeof err === "object" ? JSON.stringify(err) : String(err));
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
 
@@ -178,6 +180,7 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error("Issue certificate error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const errorMsg = err?.message || err?.details || (typeof err === "object" ? JSON.stringify(err) : String(err));
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
