@@ -105,18 +105,17 @@ export async function POST(req: NextRequest) {
       expiresAt:  expiresAtTimestamp,
     });
 
-    // Dynamically resolve public application URL (supports Vercel, production, and Wi-Fi phone testing)
+    // Dynamically resolve public application URL (automatically uses the exact live Vercel domain)
     const reqHost = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
     const reqProto = req.headers.get("x-forwarded-proto") || (reqHost.includes("localhost") ? "http" : "https");
     const detectedOrigin = reqHost ? `${reqProto}://${reqHost}` : "";
 
-    const configuredUrl = process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes("localhost")
-      ? process.env.NEXT_PUBLIC_APP_URL
-      : (detectedOrigin || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
-
-    const resolvedAppUrl = configuredUrl.includes("localhost")
-      ? "http://10.22.39.175:3000"
-      : configuredUrl;
+    // If request is made to a live cloud domain (e.g. *.vercel.app), ALWAYS use that live domain:
+    const resolvedAppUrl = (detectedOrigin && !detectedOrigin.includes("localhost"))
+      ? detectedOrigin
+      : (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes("localhost")
+          ? process.env.NEXT_PUBLIC_APP_URL
+          : (detectedOrigin || "http://10.22.39.175:3000"));
 
     // Automatically generate official PDF with embedded QR Code & uploaded document
     let pdfBuffer: Buffer;

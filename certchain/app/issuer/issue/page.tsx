@@ -48,6 +48,8 @@ export default function IssueCertificatePage() {
   });
   const [imageFile,          setImageFile]          = useState<File | null>(null);
   const [uploadedDocBase64,  setUploadedDocBase64]  = useState<string>("");
+  const [isCustomType,       setIsCustomType]       = useState(false);
+  const [customCertType,     setCustomCertType]     = useState("");
   const [aiResult,           setAiResult]           = useState<AiResult | null>(null);
   const [aiLoading,          setAiLoading]          = useState(false);
   const [issuing,            setIssuing]            = useState(false);
@@ -79,6 +81,8 @@ export default function IssueCertificatePage() {
     setAiResult(null);
     setError("");
 
+    const effectiveCertType = isCustomType && customCertType.trim() ? customCertType.trim() : form.certType;
+
     try {
       const res = await fetch("/api/ai/validate", {
         method:  "POST",
@@ -89,6 +93,7 @@ export default function IssueCertificatePage() {
             institution: form.institution,
             degree:      form.degree,
             year:        form.year,
+            certType:    effectiveCertType,
           },
           imageBase64: uploadedDocBase64,
         }),
@@ -122,12 +127,15 @@ export default function IssueCertificatePage() {
     setIssuing(true);
     setError("");
 
+    const effectiveCertType = isCustomType && customCertType.trim() ? customCertType.trim() : form.certType;
+
     try {
       const res = await fetch("/api/certificates", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
           ...form,
+          certType: effectiveCertType,
           fraudScore: aiResult.fraudScore,
           uploadedDocBase64: uploadedDocBase64 || undefined,
         }),
@@ -241,8 +249,15 @@ export default function IssueCertificatePage() {
                   Credential Classification <span className="text-blue-400">*</span>
                 </label>
                 <select
-                  value={form.certType}
-                  onChange={(e) => update("certType", e.target.value)}
+                  value={isCustomType ? "OTHER" : form.certType}
+                  onChange={(e) => {
+                    if (e.target.value === "OTHER") {
+                      setIsCustomType(true);
+                    } else {
+                      setIsCustomType(false);
+                      update("certType", e.target.value);
+                    }
+                  }}
                   className={inputStyle}
                 >
                   <option value="DEGREE">Higher Education Degree</option>
@@ -250,7 +265,23 @@ export default function IssueCertificatePage() {
                   <option value="TRANSCRIPT">Academic Transcript</option>
                   <option value="COMPLETION_CERTIFICATE">Certificate of Completion</option>
                   <option value="GOVERNMENT_ID">Identity Verification Credential</option>
+                  <option value="OTHER">Other (Specify Custom Classification)</option>
                 </select>
+
+                {isCustomType && (
+                  <div className="mt-2.5">
+                    <label className="block text-[11px] font-medium text-blue-400 mb-1">
+                      Custom Credential Classification Title <span className="text-blue-400">*</span>
+                    </label>
+                    <input
+                      value={customCertType}
+                      onChange={(e) => setCustomCertType(e.target.value)}
+                      className={inputStyle}
+                      placeholder="e.g. Diploma in AI, Fellowship, Hackathon Award"
+                      autoFocus
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -333,7 +364,7 @@ export default function IssueCertificatePage() {
 
             <button
               onClick={runAiValidation}
-              disabled={!form.holderName || !form.institution || aiLoading}
+              disabled={!form.holderName || !form.institution || (isCustomType && !customCertType.trim()) || aiLoading}
               className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-all shadow-md shadow-blue-600/20 text-sm flex items-center justify-center gap-2 mt-4"
             >
               <span>{aiLoading ? "Executing Forensic Audit..." : "Proceed to Neural Screening"}</span>
