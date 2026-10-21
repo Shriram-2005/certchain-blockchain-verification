@@ -11,79 +11,150 @@ interface SendCertificateEmailParams {
   pdfUrl?:     string;     // Supabase Storage public URL
   pdfBuffer?:  Buffer;     // Raw PDF buffer to attach directly
   txHash:      string;     // Ethereum transaction hash
+  appUrl?:     string;     // Base application URL
 }
 
 export async function sendCertificateEmail(params: SendCertificateEmailParams) {
   const etherscanUrl = `https://sepolia.etherscan.io/tx/${params.txHash}`;
-  const verifyUrl    = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/verify?id=${encodeURIComponent(params.certId)}`;
+  const baseUrl = params.appUrl || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const verifyUrl = `${baseUrl.replace(/\/$/, "")}/verify?id=${encodeURIComponent(params.certId)}`;
 
   const emailHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
       <meta charset="utf-8">
-      <title>Official Certificate Conferment</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <title>Official Credential Conferment</title>
+      <style>
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        body { margin: 0; padding: 0; width: 100% !important; background-color: #070b14; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        @media only screen and (max-width: 600px) {
+          .email-wrapper { padding: 8px !important; }
+          .email-content { padding: 22px 16px !important; }
+          .btn-block { display: block !important; width: 100% !important; box-sizing: border-box !important; margin: 0 0 10px 0 !important; text-align: center !important; }
+        }
+      </style>
     </head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; background: #0f172a; color: #334155;">
-      <div style="background: #ffffff; border-radius: 16px; padding: 36px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
-        
-        <!-- Header -->
-        <div style="text-align: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 24px; margin-bottom: 24px;">
-          <h2 style="color: #0f172a; margin: 0; font-size: 22px; letter-spacing: -0.5px;">CertChain Protocol</h2>
-          <p style="color: #64748b; margin: 6px 0 0; font-size: 13px; font-weight: 500;">Decentralized Credential Verification Ledger</p>
-        </div>
+    <body style="margin: 0; padding: 0; background-color: #070b14;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="email-wrapper" style="background-color: #070b14; padding: 28px 12px;">
+        <tr>
+          <td align="center">
+            <!-- Main Card Container -->
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #0d1527; border: 1px solid #1e293b; border-radius: 16px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.5);">
+              
+              <!-- Brand Header -->
+              <tr>
+                <td style="padding: 28px 24px 20px; border-bottom: 1px solid #1e293b; text-align: center; background-color: #0a1120;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto;">
+                    <tr>
+                      <td style="background-color: #1e3a8a; border: 1px solid #3b82f6; border-radius: 8px; width: 32px; height: 32px; text-align: center; vertical-align: middle; color: #60a5fa; font-weight: bold; font-size: 14px;">
+                        CC
+                      </td>
+                      <td style="padding-left: 10px; text-align: left;">
+                        <span style="font-size: 17px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px; display: block;">CertChain Protocol</span>
+                        <span style="font-size: 11px; color: #64748b; font-weight: 500; display: block;">Decentralized Credential Ledger</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
 
-        <p style="color: #1e293b; font-size: 15px; margin-top: 0;">Dear <strong>${params.holderName}</strong>,</p>
-        
-        <p style="color: #475569; font-size: 14px; line-height: 1.6;">
-          Your official <strong>${params.certType}</strong> credential from 
-          <strong>${params.institution}</strong> has been successfully minted and anchored to the Ethereum Sepolia blockchain.
-        </p>
+              <!-- Body Content -->
+              <tr>
+                <td class="email-content" style="padding: 30px 28px;">
+                  <p style="color: #f1f5f9; font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">
+                    Dear ${params.holderName},
+                  </p>
+                  
+                  <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+                    Your official <strong style="color: #ffffff;">${params.certType}</strong> credential from 
+                    <strong style="color: #ffffff;">${params.institution}</strong> has been authenticated and permanently recorded to the Ethereum Sepolia blockchain.
+                  </p>
 
-        <!-- Certificate Details Box -->
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 24px 0;">
-          <div style="font-size: 12px; font-weight: 700; color: #2563eb; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px;">Credential Records</div>
-          <div style="font-size: 13px; color: #334155; margin-bottom: 6px;">Certificate ID: <strong style="font-family: monospace; color: #0f172a;">${params.certId}</strong></div>
-          <div style="font-size: 13px; color: #334155; margin-bottom: 6px;">Issuing Body: <strong>${params.institution}</strong></div>
-          <div style="font-size: 13px; color: #334155;">Conferment Date: <strong>${params.issuedAt}</strong></div>
-        </div>
+                  <!-- Credential Details Box -->
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #070d1a; border: 1px solid #1e293b; border-radius: 12px; margin-bottom: 24px;">
+                    <tr>
+                      <td style="padding: 18px;">
+                        <div style="font-size: 10px; font-weight: 700; color: #38bdf8; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 12px;">Credential Records</div>
+                        
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px;">
+                          <tr>
+                            <td style="color: #64748b; padding-bottom: 8px; width: 40%;">Certificate ID:</td>
+                            <td style="color: #38bdf8; font-family: monospace; font-weight: 700; padding-bottom: 8px;">${params.certId}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; padding-bottom: 8px;">Issuing Body:</td>
+                            <td style="color: #e2e8f0; font-weight: 600; padding-bottom: 8px;">${params.institution}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; padding-bottom: 8px;">Credential Class:</td>
+                            <td style="color: #e2e8f0; font-weight: 600; padding-bottom: 8px;">${params.certType}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b;">Conferment Date:</td>
+                            <td style="color: #e2e8f0; font-weight: 600;">${params.issuedAt}</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
 
-        <!-- Action Buttons -->
-        <div style="margin: 28px 0; text-align: center;">
-          ${params.pdfUrl ? `
-            <a href="${params.pdfUrl}" 
-               style="display: inline-block; background: #2563eb; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-size: 13px; font-weight: 600; text-decoration: none; margin-right: 10px; margin-bottom: 8px;">
-              Download Official PDF
-            </a>
-          ` : ""}
-          <a href="${verifyUrl}" 
-             style="display: inline-block; background: #0f172a; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-size: 13px; font-weight: 600; text-decoration: none; margin-bottom: 8px;">
-            Verify Live on Blockchain
-          </a>
-        </div>
+                  <!-- Primary Action Buttons -->
+                  <div style="text-align: center; margin: 26px 0 20px 0;">
+                    <a href="${etherscanUrl}" target="_blank" rel="noopener noreferrer" class="btn-block"
+                       style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 13px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; text-decoration: none; margin: 4px; box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                      Inspect on Ethereum Blockchain
+                    </a>
 
-        <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin-top: 16px;">
-          Note: Your official certificate PDF with embedded cryptographic QR code is also attached directly to this email.
-        </p>
+                    <a href="${verifyUrl}" target="_blank" rel="noopener noreferrer" class="btn-block"
+                       style="display: inline-block; background-color: #1e293b; color: #f1f5f9; border: 1px solid #334155; padding: 13px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; text-decoration: none; margin: 4px;">
+                      Open CertChain Verifier
+                    </a>
 
-        <!-- Blockchain Telemetry -->
-        <div style="background: #f1f5f9; border-radius: 10px; padding: 16px; margin-top: 24px;">
-          <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;">Ethereum State Proof</div>
-          <div style="margin-top: 6px; font-size: 11px; word-break: break-all; font-family: monospace; color: #334155;">
-            Tx: ${params.txHash}
-          </div>
-          <div style="margin-top: 8px;">
-            <a href="${etherscanUrl}" style="color: #2563eb; font-size: 12px; font-weight: 600; text-decoration: none;">
-              Inspect on Etherscan &rarr;
-            </a>
-          </div>
-        </div>
+                    ${params.pdfUrl ? `
+                      <a href="${params.pdfUrl}" target="_blank" rel="noopener noreferrer" class="btn-block"
+                         style="display: inline-block; background-color: #0f172a; color: #38bdf8; border: 1px solid #0284c7; padding: 13px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; text-decoration: none; margin: 4px;">
+                        Download Official PDF
+                      </a>
+                    ` : ""}
+                  </div>
 
-        <!-- Footer -->
-        <div style="border-top: 1px solid #f1f5f9; margin-top: 28px; padding-top: 20px; text-align: center; color: #94a3b8; font-size: 11px;">
-          This record is cryptographically immutable and permanently verifiable without third-party reliance.
-        </div>
-      </div>
+                  <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 18px 0 0 0; text-align: center;">
+                    Your official certificate PDF with embedded QR code is also attached directly to this email.
+                  </p>
+
+                  <!-- Blockchain Telemetry Box -->
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #070d1a; border: 1px solid #1e293b; border-radius: 10px; margin-top: 24px;">
+                    <tr>
+                      <td style="padding: 14px 16px;">
+                        <div style="font-size: 10px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.5px;">Ethereum Sepolia State Proof</div>
+                        <div style="margin-top: 6px; font-size: 11px; word-break: break-all; font-family: monospace; color: #94a3b8; line-height: 1.4;">
+                          Tx: ${params.txHash}
+                        </div>
+                        <div style="margin-top: 6px; font-size: 11px; word-break: break-all; font-family: monospace; color: #64748b;">
+                          Contract: 0xfbE80a8e42a9c141f615A82EFf3c1403Ce4f5E95
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #070b14; border-top: 1px solid #1e293b; padding: 20px; text-align: center; color: #64748b; font-size: 11px; line-height: 1.5;">
+                  This digital credential is cryptographically anchored to Ethereum Sepolia and cannot be altered, deleted, or backdated.
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
   `;

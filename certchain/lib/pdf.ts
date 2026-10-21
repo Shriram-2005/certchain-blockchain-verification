@@ -13,10 +13,12 @@ export interface CertPdfParams {
   certHash: string;
   txHash?: string;
   uploadedDocBase64?: string;
+  appUrl?: string;
 }
 
 export async function generateCertificatePdf(params: CertPdfParams): Promise<Buffer> {
-  const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/verify?id=${encodeURIComponent(params.certId)}`;
+  const baseUrl = params.appUrl || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const verifyUrl = `${baseUrl.replace(/\/$/, "")}/verify?id=${encodeURIComponent(params.certId)}`;
 
   // 1. Generate QR Code as PNG Buffer
   const qrPngBuffer = await QRCode.toBuffer(verifyUrl, {
