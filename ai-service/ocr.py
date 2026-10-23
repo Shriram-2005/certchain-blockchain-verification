@@ -39,21 +39,35 @@ def extract_text_from_image(image_bytes: bytes, cert_text: dict) -> dict:
 
     extracted_text_clean = re.sub(r"\s+", " ", extracted_text).strip().lower()
 
-    # Build reference text from declared metadata
+    grade_str = str(cert_text.get("grade", "")).strip().lower()
     submitted_tokens = [
         str(cert_text.get("holderName", "")).strip().lower(),
         str(cert_text.get("institution", "")).strip().lower(),
         str(cert_text.get("degree", "")).strip().lower(),
         str(cert_text.get("year", "")).strip(),
     ]
+    if grade_str:
+        submitted_tokens.append(grade_str)
+
     submitted_combined = " ".join([t for t in submitted_tokens if t])
 
     # If document has actual extracted text, compute exact matching ratio
+    grade_mismatch = False
     if extracted_text_clean and submitted_combined:
         match_ratio = SequenceMatcher(None, extracted_text_clean, submitted_combined).ratio()
-        # Also check token-level presence (did name or institution appear?)
+        # Also check token-level presence (did name, institution, grade appear?)
         matched_tokens = sum(1 for token in submitted_tokens if token and token in extracted_text_clean)
         token_coverage = matched_tokens / max(len([t for t in submitted_tokens if t]), 1)
+        
+        # Check specific numeric grade if provided
+        if grade_str:
+            # Extract numbers like 8.2 or 9.5
+            nums = re.findall(r"\d+\.?\d*", grade_str)
+            for num in nums:
+                if len(num) >= 2 and num not in extracted_text_clean:
+                    grade_mismatch = True
+                    token_coverage = max(0.0, token_coverage - 0.3)
+
         # Weighted score favoring token coverage
         final_ratio = max(match_ratio, token_coverage * 0.95)
     else:
@@ -64,5 +78,6 @@ def extract_text_from_image(image_bytes: bytes, cert_text: dict) -> dict:
     return {
         "extracted_text": extracted_text[:300].strip(),
         "match_ratio": round(float(final_ratio), 3),
+        "grade_mismatch": grade_mismatch,
         "method": method
     }

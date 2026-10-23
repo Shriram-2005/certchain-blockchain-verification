@@ -93,6 +93,7 @@ export default function IssueCertificatePage() {
             institution: form.institution,
             degree:      form.degree,
             year:        form.year,
+            grade:       form.grade,
             certType:    effectiveCertType,
           },
           imageBase64: uploadedDocBase64,

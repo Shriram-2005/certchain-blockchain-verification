@@ -16,7 +16,8 @@ app = Flask(__name__)
 CORS(app)
 
 # Load known institutions database
-with open("known_institutions.json", "r") as f:
+INSTITUTIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "known_institutions.json")
+with open(INSTITUTIONS_FILE, "r", encoding="utf-8") as f:
     KNOWN_DATA = json.load(f)
 
 
@@ -59,6 +60,11 @@ def compute_fraud_score(ocr_result: dict, ela_score: float, nlp_result: dict) ->
     elif ocr_match < 0.85:
         score += 5
         flags.append("ocr_partial_mismatch")
+
+    # Numeric grade / CGPA alteration check
+    if ocr_result.get("grade_mismatch"):
+        score += 25.0
+        flags.append("grade_mismatch_in_document")
 
     score = round(min(score, 100.0), 1)
 
